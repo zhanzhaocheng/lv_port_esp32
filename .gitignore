@@ -54,3 +54,4 @@ dkms.conf
 build/
 sdkconfig.old
 sdkconfig
+components/lvgl_esp32_drivers/tags
