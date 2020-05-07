@@ -32,14 +32,26 @@
  #define TFT_SPI_HOST VSPI_HOST
  #endif
 
+#define LEN_BYTES_TO_BITS(n)    (n * 8)
+
+
 /**********************
  *      TYPEDEFS
  **********************/
+
+typedef enum _spi_send_flag_t {
+    SPI_SEND_QUEUED         = 0x00UL,
+    SPI_SEND_POLLING        = 0x01UL,
+    SPI_SEND_SYNCHRONOUS    = 0x02UL,
+    SPI_SEND_SIGNAL_FLUSH   = 0x04UL
+} spi_send_flag_t;
+
 
 /**********************
  *  STATIC PROTOTYPES
  **********************/
 static void IRAM_ATTR spi_ready (spi_transaction_t *trans);
+static void disp_spi_send_data_ex(uint8_t *data, uint16_t length, spi_send_flag_t flag);
 
 /**********************
  *  STATIC VARIABLES
@@ -130,40 +142,12 @@ void disp_spi_init(void)
 
 void disp_spi_send_data(uint8_t * data, uint16_t length)
 {
-    if (length == 0) return;           //no need to send anything
-
-    while(spi_trans_in_progress);
-
-    spi_transaction_t t = {
-        .length = length * 8, // transaction length is in bits
-        .tx_buffer = data
-    };
-
-    spi_trans_in_progress = true;
-    spi_color_sent = false;             //Mark the "lv_flush_ready" NOT needs to be called in "spi_ready"
-    spi_device_queue_trans(spi, &t, portMAX_DELAY);
-//	spi_transaction_t *ta = &t;
-//	spi_device_get_trans_result(spi,&ta, portMAX_DELAY);
+    disp_spi_send_data_ex(data, length, SPI_SEND_QUEUED);
 }
 
 void disp_spi_send_colors(uint8_t * data, uint16_t length)
 {
-    if (length == 0) {
-	return;
-    }
-
-    while(spi_trans_in_progress);
-
-    spi_transaction_t t = {
-        .length = length * 8, // transaction length is in bits
-        .tx_buffer = data
-    };
-
-    spi_trans_in_progress = true;
-    spi_color_sent = true;              //Mark the "lv_flush_ready" needs to be called in "spi_ready"
-    spi_device_queue_trans(spi, &t, portMAX_DELAY);
-//	spi_transaction_t *ta = &t;
-//	spi_device_get_trans_result(spi,&ta, portMAX_DELAY);
+    disp_spi_send_data_ex(data, length, SPI_SEND_SIGNAL_FLUSH);
 }
 
 
@@ -178,9 +162,58 @@ bool disp_spi_is_busy(void)
 
 static void IRAM_ATTR spi_ready (spi_transaction_t *trans)
 {
-    spi_trans_in_progress = false;
+    spi_send_flag_t flags = (spi_send_flag_t) trans->user;
 
-    lv_disp_t * disp = lv_refr_get_disp_refreshing();
-    if(spi_color_sent) lv_disp_flush_ready(&disp->driver);
-    if(chained_post_cb) chained_post_cb(trans);
+    if (flags & SPI_SEND_SIGNAL_FLUSH) {
+        lv_disp_t *disp = lv_refr_get_disp_refreshing();
+        lv_disp_flush_ready(&disp->driver);
+    }
+
+    if (chained_post_cb) {
+        chained_post_cb(trans);
+    }
+}
+
+static void disp_spi_send_data_ex(uint8_t *data, uint16_t length,
+    spi_send_flag_t flags)
+{
+    if (0 == length) {
+        return;
+    }
+    
+    // retrieve pending previous transaction results
+    static volatile uint8_t pending = 0;
+    spi_transaction_t *result = NULL;
+    while (pending) {
+        if (ESP_OK == spi_device_get_trans_result(spi, &result, portMAX_DELAY)) {
+            pending--;
+        }
+    }
+
+    spi_transaction_t t = {0};
+
+    // If the transaction length (in bytes) is less than 4
+    // we can avoid allocating memory for it.
+    if (length <= 4) {
+        t.length = LEN_BYTES_TO_BITS(length);
+        t.flags = SPI_TRANS_USE_TXDATA;
+        memcpy(t.tx_data, data, length);
+    } else {
+        t.length = LEN_BYTES_TO_BITS(length);
+        t.tx_buffer = data;
+    }
+
+    t.user = (void *) flags;
+
+    if (flags & SPI_SEND_POLLING) {
+        spi_device_polling_transmit(spi, &t);
+    } else if (flags & SPI_SEND_SYNCHRONOUS) {
+        spi_device_transmit(spi, &t);
+    } else {
+        static spi_transaction_t queuedt;
+        memcpy(&queuedt, &t, sizeof t);
+        pending++;
+        spi_device_queue_trans(spi, &queuedt, portMAX_DELAY);
+    }
+
 }
