@@ -74,6 +74,11 @@ void st7789_init(void)
         {0xB6, {0x0A, 0x82, 0x27, 0x00}, 4},
         {ST7789_SLPOUT, {0}, 0x80},
         {ST7789_DISPON, {0}, 0x80},
+
+#ifdef CONFIG_IDF_TARGET_ESP32S2
+        {ST7789_INVOFF, {0}, 0x80},
+#endif/**< CONFIG_IDF_TARGET_ESP32S2 */
+
         {0, {0}, 0xff},
     };
 

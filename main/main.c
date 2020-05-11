@@ -47,13 +47,13 @@ void app_main() {
     
     //If you want to use a task to create the graphic, you NEED to create a Pinned task
     //Otherwise there can be problem such as memory corruption and so on
-    xTaskCreatePinnedToCore(guiTask, "gui", 4096*2, NULL, 0, NULL, 1);
+    xTaskCreatePinnedToCore(guiTask, "gui", 4096*2, NULL, 0, NULL, 0);
 }
 
 static void IRAM_ATTR lv_tick_task(void *arg) {
     (void) arg;
 
-    lv_tick_inc(portTICK_RATE_MS);
+    lv_tick_inc(pdMS_TO_TICKS(10));
 }
 
 //Creates a semaphore to handle concurrent call to lvgl stuff
@@ -126,9 +126,9 @@ void guiTask() {
 
 #endif // CONFIG_LVGL_TFT_DISPLAY_MONOCHROME
     while (1) {
-        vTaskDelay(1);
+        vTaskDelay(pdMS_TO_TICKS(10));
         //Try to lock the semaphore, if success, call lvgl stuff
-        if (xSemaphoreTake(xGuiSemaphore, (TickType_t)10) == pdTRUE) {
+        if (xSemaphoreTake(xGuiSemaphore, pdMS_TO_TICKS(100)) == pdTRUE) {
             lv_task_handler();
             xSemaphoreGive(xGuiSemaphore);
         }

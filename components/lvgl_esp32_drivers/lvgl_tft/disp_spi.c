@@ -26,11 +26,20 @@
 /*********************
  *      DEFINES
  *********************/
+//alias for different chips
+#ifdef CONFIG_IDF_TARGET_ESP32
  #if CONFIG_LVGL_TFT_DISPLAY_SPI_HSPI == 1
  #define TFT_SPI_HOST HSPI_HOST
  #else
  #define TFT_SPI_HOST VSPI_HOST
  #endif
+#elif CONFIG_IDF_TARGET_ESP32S2
+ #if CONFIG_LVGL_TFT_DISPLAY_SPI_HSPI == 1
+ #define TFT_SPI_HOST FSPI_HOST
+ #else
+ #define TFT_SPI_HOST HSPI_HOST
+ #endif
+#endif
 
 /**********************
  *      TYPEDEFS

@@ -30,6 +30,8 @@ extern "C" {
 
 #define ENABLE_TOUCH_INPUT  CONFIG_LVGL_ENABLE_TOUCH
 
+//alias for different chips
+#ifdef CONFIG_IDF_TARGET_ESP32
 #if CONFIG_LVGL_TFT_DISPLAY_SPI_HSPI == 1
 #define TFT_SPI_HOST HSPI_HOST
 #else
@@ -41,6 +43,19 @@ extern "C" {
 #else
 #define TOUCH_SPI_HOST VSPI_HOST
 #endif /*CONFIG_LVGL_TOUCH_CONTROLLER_SPI_HSPI == 1*/
+#elif CONFIG_IDF_TARGET_ESP32S2
+#if CONFIG_LVGL_TFT_DISPLAY_SPI_HSPI == 1
+#define TFT_SPI_HOST FSPI_HOST
+#else
+#define TFT_SPI_HOST HSPI_HOST
+#endif /*CONFIG_LVGL_TFT_DISPLAY_SPI_HSPI == 1*/
+
+#if CONFIG_LVGL_TOUCH_CONTROLLER_SPI_HSPI == 1
+#define TOUCH_SPI_HOST FSPI_HOST
+#else
+#define TOUCH_SPI_HOST HSPI_HOST
+#endif /*CONFIG_LVGL_TOUCH_CONTROLLER_SPI_HSPI == 1*/
+#endif
 
 // Detect the use of a shared SPI Bus and verify the user specified the same SPI bus for both touch and tft
 #if (CONFIG_LVGL_TOUCH_CONTROLLER == 1 || CONFIG_LVGL_TOUCH_CONTROLLER == 3) && TP_SPI_MOSI == DISP_SPI_MOSI && TP_SPI_CLK == DISP_SPI_CLK
